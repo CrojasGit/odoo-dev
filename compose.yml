@@ -1,0 +1,70 @@
+#yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json
+services:
+  # Servicio Web: Odoo
+  web:
+    image: odoo:19
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${ODOO_PORT}:8069"
+    volumes:
+      # Bind mount solo para addons en desarrollo local
+      - ./volumesOdoo/addons:/mnt/extra-addons
+      # Volúmenes nombrados para mayor rendimiento de I/O en filestore y sesiones
+      - odoo_filestore:/var/lib/odoo/filestore
+      - odoo_sessions:/var/lib/odoo/sessions
+    secrets:
+      - db_password
+    environment:
+      - HOST=db
+      - USER=${POSTGRES_USER}
+      - PASSWORD_FILE=/run/secrets/db_password
+    command: --dev=all -d ${POSTGRES_DB} -i base
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Servicio Base de Datos: PostgreSQL
+  db:
+    image: postgres:18
+    # Optimización de I/O de PostgreSQL para desarrollo local rápido
+    command: postgres -c fsync=off -c full_page_writes=off
+    secrets:
+      - db_password
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db_password
+    volumes:
+      # Volumen nombrado gestionado por Docker (mucho más rápido que un bind mount local)
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+# Declaración de volúmenes persistentes gestionados por Docker
+volumes:
+  postgres_data:
+  odoo_filestore:
+  odoo_sessions:
+
+# Declaración de secretos
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
