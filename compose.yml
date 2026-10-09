@@ -20,7 +20,7 @@ services:
       - HOST=db
       - USER=${POSTGRES_USER}
       - PASSWORD_FILE=/run/secrets/db_password
-    command: --dev=all -d ${POSTGRES_DB} -i base
+    command: --dev=all -d ${POSTGRES_DB}
     deploy:
       resources:
         limits:
